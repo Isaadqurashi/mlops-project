@@ -1,5 +1,5 @@
 # Build stage
-FROM python:3.9-slim as builder
+FROM python:3.10-slim as builder
 
 WORKDIR /app
 # 1. Copy the requirements file
@@ -17,7 +17,7 @@ RUN pip install "numpy<2.0" pandas
 RUN pip install --no-cache-dir .
 
 # Runtime stage
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
