@@ -4,6 +4,8 @@ import numpy as np
 import joblib
 import os
 import plotly.graph_objects as go
+import plotly.figure_factory as ff
+from scipy.stats import ks_2samp
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -988,9 +990,23 @@ with col_nav3:
     if st.button("🔍 Debug", key="debug_btn", use_container_width=True, help="Show diagnostic information"):
         st.session_state.show_debug = not st.session_state.get('show_debug', False)
 
-# Main Title
-st.markdown("<br>", unsafe_allow_html=True)
-st.title("Nuqta | AI Market Insight")
+# Main Title - Custom HTML for Hugging Face compatibility
+st.markdown("""
+<div style="text-align: center; padding: 1rem 0; margin-bottom: 1rem;">
+    <h1 style="
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        font-size: 2.8rem;
+        background: linear-gradient(135deg, #D4AF37 0%, #10B981 50%, #D4AF37 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0;
+        letter-spacing: -0.02em;
+        display: inline-block;
+    ">Nuqta | AI Market Insight</h1>
+</div>
+""", unsafe_allow_html=True)
 
 # Debug Panel (if enabled)
 if st.session_state.get('show_debug', False):
@@ -1093,10 +1109,11 @@ if models:
                 st.toast("🔔 Discord Alert Sent!", icon="✅")
 
 # --- Layout: Tabs with Icons ---
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     '📊 Dashboard', 
     '📈 Technical Analysis',
-    '🔗 Market Matrix'
+    '🔗 Market Matrix',
+    '⚠️ Model Health'
 ])
 
 # === TAB 1: DASHBOARD ===
@@ -1684,6 +1701,162 @@ with tab3:
             print(f"Traceback: {traceback.format_exc()}")
             st.error(f"❌ Could not load Market Matrix: {error_msg}")
             st.info("💡 Try refreshing the page. This feature requires fetching data for all stocks.")
+
+# === TAB 4: MODEL HEALTH ===
+with tab4:
+    st.header('⚠️ Model Health & Drift Monitor')
+    st.markdown("""
+    <div style="color: #9CA3AF; margin-bottom: 1.5rem;">
+        Monitor data drift to ensure model predictions remain reliable. 
+        Compares <strong style="color: #10B981;">historical training data</strong> vs 
+        <strong style="color: #EF4444;">recent data</strong> to detect distribution shifts.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        if not data['is_mock']:
+            # Fetch historical data for drift analysis
+            with st.spinner("📊 Analyzing data distributions..."):
+                ticker_obj = yf.Ticker(symbol)
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=365)  # 1 year of data
+                
+                hist_df = ticker_obj.history(start=start_date, end=end_date, timeout=15)
+                
+                if hist_df is not None and not hist_df.empty and len(hist_df) > 60:
+                    hist_df.columns = [col.lower() for col in hist_df.columns]
+                    
+                    # Calculate RSI for drift analysis
+                    delta = hist_df['close'].diff()
+                    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                    rs = gain / loss
+                    hist_df['rsi'] = 100 - (100 / (1 + rs))
+                    hist_df = hist_df.dropna()
+                    
+                    if len(hist_df) > 60:
+                        # Split data: Reference (older) vs Current (last 30 days)
+                        reference_data = hist_df.iloc[:-30]
+                        current_data = hist_df.iloc[-30:]
+                        
+                        # Feature selection for drift analysis
+                        features_to_check = ['rsi', 'close', 'volume']
+                        
+                        for feature in features_to_check:
+                            if feature in hist_df.columns:
+                                st.subheader(f"📊 {feature.upper()} Distribution Drift")
+                                
+                                ref_values = reference_data[feature].dropna().values
+                                cur_values = current_data[feature].dropna().values
+                                
+                                if len(ref_values) > 10 and len(cur_values) > 10:
+                                    # KS Test for statistical drift detection
+                                    ks_stat, p_value = ks_2samp(ref_values, cur_values)
+                                    
+                                    col_drift1, col_drift2 = st.columns([2, 1])
+                                    
+                                    with col_drift1:
+                                        # Create distribution plot
+                                        try:
+                                            fig_drift = ff.create_distplot(
+                                                [ref_values.tolist(), cur_values.tolist()],
+                                                ['Training History', 'Last 30 Days'],
+                                                colors=['#10B981', '#EF4444'],
+                                                show_hist=False,
+                                                show_rug=False
+                                            )
+                                            
+                                            fig_drift.update_layout(
+                                                template="plotly_dark",
+                                                title=f"{feature.upper()} Distribution: Historical vs Recent",
+                                                height=350,
+                                                showlegend=True,
+                                                legend=dict(orientation="h", y=-0.15),
+                                                margin=dict(l=50, r=50, t=50, b=80),
+                                            )
+                                            
+                                            st.plotly_chart(fig_drift, use_container_width=True, theme="streamlit")
+                                        except Exception as plot_err:
+                                            st.warning(f"Could not create distribution plot: {str(plot_err)[:50]}")
+                                    
+                                    with col_drift2:
+                                        # Display drift status
+                                        drift_detected = p_value < 0.05
+                                        
+                                        if drift_detected:
+                                            drift_html = f'''
+                                            <div style="
+                                                background: rgba(239, 68, 68, 0.15);
+                                                border: 2px solid rgba(239, 68, 68, 0.5);
+                                                border-radius: 12px;
+                                                padding: 1.5rem;
+                                                text-align: center;
+                                            ">
+                                                <div style="font-size: 2rem;">🚨</div>
+                                                <div style="color: #EF4444; font-size: 1.2rem; font-weight: 700; margin: 0.5rem 0;">
+                                                    DRIFT DETECTED
+                                                </div>
+                                                <div style="color: #9CA3AF; font-size: 0.9rem;">
+                                                    KS Statistic: {ks_stat:.3f}<br>
+                                                    P-Value: {p_value:.4f}
+                                                </div>
+                                                <div style="color: #EF4444; font-size: 0.75rem; margin-top: 0.5rem;">
+                                                    Model retraining recommended
+                                                </div>
+                                            </div>
+                                            '''
+                                        else:
+                                            drift_html = f'''
+                                            <div style="
+                                                background: rgba(16, 185, 129, 0.15);
+                                                border: 2px solid rgba(16, 185, 129, 0.5);
+                                                border-radius: 12px;
+                                                padding: 1.5rem;
+                                                text-align: center;
+                                            ">
+                                                <div style="font-size: 2rem;">✅</div>
+                                                <div style="color: #10B981; font-size: 1.2rem; font-weight: 700; margin: 0.5rem 0;">
+                                                    NO DRIFT
+                                                </div>
+                                                <div style="color: #9CA3AF; font-size: 0.9rem;">
+                                                    KS Statistic: {ks_stat:.3f}<br>
+                                                    P-Value: {p_value:.4f}
+                                                </div>
+                                                <div style="color: #10B981; font-size: 0.75rem; margin-top: 0.5rem;">
+                                                    Model is stable
+                                                </div>
+                                            </div>
+                                            '''
+                                        
+                                        st.markdown(drift_html, unsafe_allow_html=True)
+                                    
+                                    st.markdown("---")
+                        
+                        # Model Info Summary
+                        st.subheader("📋 Model Summary")
+                        col_summ1, col_summ2, col_summ3 = st.columns(3)
+                        
+                        with col_summ1:
+                            st.metric("Data Points (Training)", len(reference_data))
+                        with col_summ2:
+                            st.metric("Data Points (Recent)", len(current_data))
+                        with col_summ3:
+                            model_status = "✅ Healthy" if p_value >= 0.05 else "⚠️ Needs Review"
+                            st.metric("Model Status", model_status)
+                    else:
+                        st.warning("⚠️ Not enough historical data for drift analysis. Need at least 60 days.")
+                else:
+                    st.warning("⚠️ Could not fetch historical data for drift analysis.")
+        else:
+            st.warning("⚠️ Drift analysis unavailable in Mock Data mode. Select a real stock ticker.")
+            
+    except Exception as drift_error:
+        error_msg = str(drift_error)
+        print(f"❌ Model Health error: {error_msg}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        st.error(f"❌ Could not perform drift analysis: {error_msg}")
+        st.info("💡 This feature requires fetching 1 year of historical data.")
 
 # Footer
 st.markdown("---")
