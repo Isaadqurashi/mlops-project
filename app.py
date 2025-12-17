@@ -1031,15 +1031,7 @@ if 'last_sent_alert' not in st.session_state:
 # --- Inject Custom CSS ---
 inject_custom_css()
 
-# --- SIDEBAR ADMIN SECTION ---
-with st.sidebar.expander("⚙️ Admin Zone", expanded=False):
-    st.write("Drift detected? Retrain models here.")
-    st.info("⚠️ This will run training on the cloud and sync new models.")
-    
-    # Use session state to prevent accidental double-clicks or multiple runs
-    if st.button("🚀 Retrain Models on Cloud", use_container_width=True):
-        with st.spinner("🚀 Initializing Cloud Training Pipeline..."):
-            run_cloud_training()
+# --- Admin Zone Removed ---
 
 # --- Top Navigation Bar ---
 st.markdown("""
