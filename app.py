@@ -1183,12 +1183,23 @@ with tab1:
                 
                 print(f"📈 Creating chart with {len(hist_data)} data points...")
                 
+                # CRITICAL FIX: Convert pandas Series to lists of floats for Plotly compatibility
+                # Some environments have issues with pandas Series in Plotly
+                ohlc_open = hist_data['open'].astype(float).tolist()
+                ohlc_high = hist_data['high'].astype(float).tolist()
+                ohlc_low = hist_data['low'].astype(float).tolist()
+                ohlc_close = hist_data['close'].astype(float).tolist()
+                dates = hist_data.index.tolist()
+                
+                print(f"   OHLC sample - Open: {ohlc_open[:3]}, Close: {ohlc_close[:3]}")
+                print(f"   Date sample: {dates[:3]}")
+                
                 fig = go.Figure(data=[go.Candlestick(
-                    x=hist_data.index,
-                    open=hist_data['open'],
-                    high=hist_data['high'],
-                    low=hist_data['low'],
-                    close=hist_data['close'],
+                    x=dates,
+                    open=ohlc_open,
+                    high=ohlc_high,
+                    low=ohlc_low,
+                    close=ohlc_close,
                     increasing_line_color='#10B981',
                     decreasing_line_color='#EF4444',
                     increasing_fillcolor='#10B981',
