@@ -2,6 +2,11 @@
 FROM python:3.9-slim as builder
 
 WORKDIR /app
+# 1. Copy the requirements file
+COPY requirements.txt .
+
+# 2. Install dependencies from the file
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pyproject.toml .
 COPY src/ src/
