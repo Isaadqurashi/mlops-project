@@ -1,0 +1,48 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./reports:/app/reports
+      - ./data:/app/data
+    env_file:
+      - .env
+    restart: always
+    depends_on:
+      - prefect-server
+
+  prefect-server:
+    image: prefecthq/prefect:2-python3.9
+    entrypoint: [ "prefect", "server", "start", "--host", "0.0.0.0" ]
+    ports:
+      - "4200:4200"
+    environment:
+      - PREFECT_UI_URL=http://127.0.0.1:4200/api
+      - PREFECT_API_URL=http://127.0.0.1:4200/api
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://prefect:prefect@postgres:5432/prefect
+    depends_on:
+      - postgres
+    volumes:
+      - prefect_data:/root/.prefect
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=prefect
+      - POSTGRES_PASSWORD=prefect
+      - POSTGRES_DB=prefect
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U prefect" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  prefect_data:
+  postgres_data:

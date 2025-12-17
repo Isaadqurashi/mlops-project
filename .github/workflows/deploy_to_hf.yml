@@ -1,0 +1,41 @@
+name: Sync to Hugging Face Hub
+# Trigger deployment manually
+
+on:
+  push:
+    branches: [main]
+
+  # Make it manually triggerable
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install Python dependencies
+        run: pip install huggingface_hub
+
+      - name: Push to Hub (Python Mode)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          
+          api = HfApi()
+          print('Uploading files to Hugging Face...')
+          
+          # Upload the entire current directory to the Space
+          api.upload_folder(
+              folder_path='.',
+              repo_id='umer6016/Stockker',
+              repo_type='space',
+              token=os.environ['HF_TOKEN'],
+              ignore_patterns=['.git', '.github', '__pycache__', 'vocab.txt']
+          )
+          print('Upload complete!')
+          "
