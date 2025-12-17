@@ -2,6 +2,10 @@
 FROM python:3.10-slim as builder
 
 WORKDIR /app
+
+# Install Git so we can download pandas_ta directly
+RUN apt-get update && apt-get install -y git
+
 # 1. Copy the requirements file
 COPY requirements.txt .
 
