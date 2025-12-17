@@ -6,8 +6,8 @@ WORKDIR /app
 # Install Git so we can download pandas_ta directly
 RUN apt-get update && apt-get install -y git
 
-# --- NEW STEP: Install pandas_ta manually ---
-RUN pip install git+https://github.com/twopirllc/pandas-ta.git@development
+# This downloads the code directly without needing git installed
+RUN pip install https://github.com/twopirllc/pandas-ta/archive/development.zip
 # ------------------------------------------
     
 # 1. Copy the requirements file
