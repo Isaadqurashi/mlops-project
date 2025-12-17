@@ -19,7 +19,7 @@ An End-to-End Machine Learning System for predicting stock prices and analyzing 
 *   **Market Analysis:** Unsupervised Learning (Clustering & PCA) to detect market volatility regimes.
 *   **Automated Pipeline:** Built with Prefect for orchestration and GitHub Actions for CI/CD.
 
-## 🛠️ Tech Stack
+## 🛠️  Tech Stack
 
 *   **Frontend:** Streamlit
 *   **Backend:** FastAPI / Prefect
