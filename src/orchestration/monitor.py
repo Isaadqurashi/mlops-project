@@ -198,7 +198,7 @@ def get_prediction_id(symbol, date_str, predicted_price):
 def send_discord_alert(symbol, price, change_percent, prediction_dir, target_price, prediction_change_pct):
     """Sends a professionally formatted message to Discord."""
     is_bullish = prediction_change_pct >= 0.5
-    is_bearish = prediction_change_pct <= -0.5
+
     
     direction_emoji = "📈" if is_bullish else "📉"
     trend_emoji = "🟢" if is_bullish else "🔴"

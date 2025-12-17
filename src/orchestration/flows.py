@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Add "# noqa: E402" to the end of this line to silence the error
+
 from src.orchestration.notifications import notify_discord  # noqa: E402
 
 # Optional import for data validation (may fail due to deepchecks compatibility)
@@ -118,16 +118,16 @@ def main_pipeline(symbols: list[str] = []):
             failed.append((symbol, error_msg))
             notify_discord(f"❌ Pipeline failed for {symbol}: {error_msg}")
             print(f"❌ Error processing {symbol}: {error_msg}")
-            print(f"⚠️  Continuing with next ticker...")
+            print("⚠️  Continuing with next ticker...")
             continue
     
     # Summary
     print(f"\n{'='*60}")
-    print(f"Pipeline Summary:")
+    print("Pipeline Summary:")
     print(f"  ✅ Successful: {len(successful)}/{len(symbols)}")
     print(f"  ❌ Failed: {len(failed)}/{len(symbols)}")
     if failed:
-        print(f"\nFailed symbols:")
+        print("\nFailed symbols:")
         for symbol, error in failed:
             print(f"  - {symbol}: {error}")
     print(f"{'='*60}")
