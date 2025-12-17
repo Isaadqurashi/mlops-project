@@ -1,6 +1,7 @@
 """
 Model Training Module
 Trains regression, classification, clustering, and PCA models for stock prediction.
+Now includes stationary features to minimize data drift.
 """
 import os
 import joblib
@@ -34,18 +35,43 @@ class ModelTrainer:
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(metrics_dir, exist_ok=True)
         
-        # Feature columns for training
-        self.feature_cols = ['sma_20', 'sma_50', 'rsi', 'macd']
+        # Feature columns for training - includes stationary features for drift minimization
+        # Primary features: technical indicators
+        self.base_feature_cols = ['sma_20', 'sma_50', 'rsi', 'macd']
+        
+        # Stationary features: reduce drift by using normalized/relative values
+        self.stationary_feature_cols = ['log_return', 'pct_return', 'volatility_20', 'price_zscore']
+        
+        # Combined feature set
+        self.feature_cols = self.base_feature_cols + self.stationary_feature_cols
+    
+    def _get_available_features(self, df: pd.DataFrame) -> list:
+        """Get only features that exist in the DataFrame."""
+        available = [col for col in self.feature_cols if col in df.columns]
+        missing = [col for col in self.feature_cols if col not in df.columns]
+        
+        if missing:
+            print(f"   ⚠️ Missing features (using available): {missing}")
+        
+        # Fallback to base features if no stationary features
+        if len(available) == 0:
+            available = [col for col in self.base_feature_cols if col in df.columns]
+        
+        print(f"   ✅ Using features: {available}")
+        return available
     
     def train_regression(self, train_df: pd.DataFrame, test_df: pd.DataFrame):
         """Train regression model to predict next day's closing price."""
         print("Training Regression Model...")
         
+        # Get available features (handles missing stationary features gracefully)
+        features = self._get_available_features(train_df)
+        
         # Prepare features and targets
-        X_train = train_df[self.feature_cols].values
+        X_train = train_df[features].values
         y_train = train_df['target_price'].values
         
-        X_test = test_df[self.feature_cols].values
+        X_test = test_df[features].values
         y_test = test_df['target_price'].values
         
         # Create ensemble regressor
@@ -81,11 +107,14 @@ class ModelTrainer:
         """Train classification model to predict next day's direction (UP/DOWN)."""
         print("Training Classification Model...")
         
+        # Get available features (handles missing stationary features gracefully)
+        features = self._get_available_features(train_df)
+        
         # Prepare features and targets
-        X_train = train_df[self.feature_cols].values
+        X_train = train_df[features].values
         y_train = train_df['target_direction'].values
         
-        X_test = test_df[self.feature_cols].values
+        X_test = test_df[features].values
         y_test = test_df['target_direction'].values
         
         # Create ensemble classifier with soft voting

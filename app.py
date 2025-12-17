@@ -13,6 +13,16 @@ import yfinance as yf
 import hashlib
 import time
 from functools import wraps
+from huggingface_hub import HfApi
+import sys
+
+# Ensure src module is accessible
+sys.path.append(os.getcwd())
+try:
+    from src.orchestration.flows import main_pipeline
+except ImportError:
+    print("Could not import main_pipeline. Cloud training might fail.")
+
 
 # Load env vars (for local support)
 load_dotenv()
@@ -20,12 +30,72 @@ load_dotenv()
 # NOTE: Do NOT set pio.renderers.default here as it conflicts with Streamlit in headless environments.
 # pio.renderers.default = "browser"  # Removed to fix chart display issues on Hugging Face
 
+# --- Cloud Training Logic ---
+def run_cloud_training():
+    """
+    Runs the training pipeline on the cloud and uploads the new models.
+    """
+    TOKEN = os.getenv("HF_TOKEN")
+    REPO_ID = "nvvy/nuqta-Stock-predictor"  # Your Space ID
+
+    if not TOKEN:
+        st.error("❌ HF_TOKEN not found in Secrets. Cannot save models.")
+        return
+
+    status_text = st.empty()
+    progress_bar = st.progress(0)
+
+    try:
+        # 1. Start Training
+        status_text.text("⏳ Training in progress... (This may take a few minutes)")
+        progress_bar.progress(10)
+        
+        # Run existing orchestration flow
+        # Ensure we're passing empty list to indicate "all tickers" if that's the intended behavior
+        main_pipeline([]) 
+        
+        progress_bar.progress(70)
+        status_text.text("✅ Training Complete. Uploading models to Hub...")
+
+        # 2. Upload Models Back to Hugging Face
+        api = HfApi(token=TOKEN)
+        
+        # Upload new 'models' folder
+        print("Uploading models folder to Hub...")
+        api.upload_folder(
+            folder_path="models",
+            path_in_repo="models",
+            repo_id=REPO_ID,
+            repo_type="space"
+        )
+        
+        # Upload new 'data' folder
+        print("Uploading data folder to Hub...")
+        api.upload_folder(
+            folder_path="data",
+            path_in_repo="data",
+            repo_id=REPO_ID,
+            repo_type="space"
+        )
+
+        progress_bar.progress(100)
+        status_text.success("🎉 Models updated & saved to Cloud! The app will reload shortly.")
+        
+        # Optional: Wait a bit and reload
+        time.sleep(3)
+        st.cache_data.clear()
+        st.rerun()
+        
+    except Exception as e:
+        status_text.error(f"❌ Training Failed: {e}")
+        print(f"Cloud training error: {e}")
+
 # --- Config ---
 st.set_page_config(
     page_title="Nuqta | AI Market Insight", 
     layout="wide", 
     page_icon="🔷", 
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # --- Model Verification on Startup ---
@@ -959,6 +1029,16 @@ if 'last_sent_alert' not in st.session_state:
 
 # --- Inject Custom CSS ---
 inject_custom_css()
+
+# --- SIDEBAR ADMIN SECTION ---
+with st.sidebar.expander("⚙️ Admin Zone", expanded=False):
+    st.write("Drift detected? Retrain models here.")
+    st.info("⚠️ This will run training on the cloud and sync new models.")
+    
+    # Use session state to prevent accidental double-clicks or multiple runs
+    if st.button("🚀 Retrain Models on Cloud", use_container_width=True):
+        with st.spinner("🚀 Initializing Cloud Training Pipeline..."):
+            run_cloud_training()
 
 # --- Top Navigation Bar ---
 st.markdown("""
