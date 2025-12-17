@@ -725,10 +725,10 @@ def fetch_live_data_alphavantage(symbol):
         return {
             "price": float(latest['close']),
             "change": change_percent,
-            "sma_20": float(latest['sma_20']),
-            "sma_50": float(latest['sma_50']),
-            "rsi": float(latest['rsi']),
-            "macd": float(latest['macd']),
+            "sma_20": float(latest['sma_20']) if not np.isnan(latest['sma_20']) else float(latest['close']),
+            "sma_50": float(latest['sma_50']) if not np.isnan(latest['sma_50']) else float(latest['close']),
+            "rsi": float(latest['rsi']) if not np.isnan(latest['rsi']) else 50.0,
+            "macd": float(latest['macd']) if not np.isnan(latest['macd']) else 0.0,
             "volatility": float(latest['volatility']) if not np.isnan(latest['volatility']) else 0.0,
             "is_mock": False
         }
