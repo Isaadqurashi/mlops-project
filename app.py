@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
 import hashlib
+import time
+from functools import wraps
 
 # Load env vars (for local support)
 load_dotenv()
@@ -529,6 +531,35 @@ def render_prediction_hero(direction, confidence, target_price, symbol):
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
+# --- Retry Decorator for API Calls ---
+def retry_api_call(max_retries=3, delay=2, backoff=2):
+    """Decorator to retry API calls with exponential backoff."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            current_delay = delay
+            
+            for attempt in range(max_retries):
+                try:
+                    result = func(*args, **kwargs)
+                    if attempt > 0:
+                        print(f"✅ API call succeeded on attempt {attempt + 1}")
+                    return result
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        print(f"⚠️  API call failed (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                        print(f"   Retrying in {current_delay} seconds...")
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+                    else:
+                        print(f"❌ API call failed after {max_retries} attempts: {str(e)}")
+            
+            raise last_exception
+        return wrapper
+    return decorator
+
 # --- Ticker Name Mapping ---
 TICKER_NAMES = {
     # USA
@@ -700,37 +731,63 @@ def get_prediction_id(symbol, date_str, predicted_price):
     unique_string = f"{symbol}_{date_str}_{predicted_price:.2f}"
     return hashlib.md5(unique_string.encode()).hexdigest()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_live_data(symbol):
     """Fetches raw price data and calculates indicators locally.
     Uses Yahoo Finance for international tickers, Alpha Vantage for US stocks.
     """
+    print(f"🔍 Fetching live data for {symbol}...")
     has_international_suffix = any(symbol.endswith(suffix) for suffix in ['.KA', '.NS', '.L', '.T', '.HK', '.DE'])
     
     if has_international_suffix or not ALPHA_VANTAGE_KEY:
+        print(f"📊 Using Yahoo Finance for {symbol} (international ticker or no Alpha Vantage key)")
         return fetch_live_data_yahoo(symbol)
     else:
         try:
+            print(f"📊 Trying Alpha Vantage first for {symbol}...")
             return fetch_live_data_alphavantage(symbol)
         except Exception as e:
-            print(f"Alpha Vantage failed for {symbol}: {e}. Trying Yahoo Finance...")
+            print(f"⚠️  Alpha Vantage failed for {symbol}: {e}")
+            print(f"📊 Falling back to Yahoo Finance for {symbol}...")
             return fetch_live_data_yahoo(symbol)
 
+@retry_api_call(max_retries=3, delay=2)
 def fetch_live_data_yahoo(symbol):
-    """Fetches data using Yahoo Finance."""
+    """Fetches data using Yahoo Finance with retry logic."""
     try:
+        print(f"📡 Connecting to Yahoo Finance for {symbol}...")
         ticker = yf.Ticker(symbol)
+        
+        # Set timeout and retry parameters
         end_date = datetime.now()
         start_date = end_date - timedelta(days=100)
-        data = ticker.history(start=start_date, end=end_date)
+        
+        print(f"   Fetching data from {start_date.date()} to {end_date.date()}...")
+        data = ticker.history(start=start_date, end=end_date, timeout=10)
+        
+        if data is None:
+            raise ValueError(f"Yahoo Finance returned None for {symbol}")
         
         if data.empty:
-            raise ValueError(f"No data returned for {symbol}")
+            raise ValueError(f"Yahoo Finance returned empty DataFrame for {symbol}")
         
+        print(f"   ✅ Received {len(data)} rows of data")
+        
+        # Validate data has required columns
         data.columns = [col.lower() for col in data.columns]
-        data = data[['open', 'high', 'low', 'close', 'volume']]
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        missing_cols = [col for col in required_cols if col not in data.columns]
+        if missing_cols:
+            raise ValueError(f"Missing required columns: {missing_cols}. Available: {list(data.columns)}")
+        
+        data = data[required_cols]
         data = data.sort_index()
         
+        # Validate data has valid values
+        if data[['open', 'high', 'low', 'close']].isna().all().all():
+            raise ValueError(f"All price data is NaN for {symbol}")
+        
+        # Calculate indicators
         data['sma_20'] = data['close'].rolling(window=20).mean()
         data['sma_50'] = data['close'].rolling(window=50).mean()
         
@@ -748,11 +805,11 @@ def fetch_live_data_yahoo(symbol):
         data['macd'] = exp1 - exp2
         
         latest = data.iloc[-1]
-        prev = data.iloc[-2]
+        prev = data.iloc[-2] if len(data) > 1 else latest
         
-        change_percent = ((latest['close'] - prev['close']) / prev['close']) * 100
+        change_percent = ((latest['close'] - prev['close']) / prev['close']) * 100 if prev['close'] > 0 else 0.0
         
-        return {
+        result = {
             "price": float(latest['close']),
             "change": change_percent,
             "sma_20": float(latest['sma_20']) if not np.isnan(latest['sma_20']) else float(latest['close']),
@@ -762,10 +819,16 @@ def fetch_live_data_yahoo(symbol):
             "volatility": float(latest['volatility']) if not np.isnan(latest['volatility']) else 0.0,
             "is_mock": False
         }
+        
+        print(f"✅ Successfully fetched live data for {symbol}: Price=${result['price']:.2f}")
+        return result
+        
     except Exception as e:
-        print(f"Yahoo Finance fetch failed for {symbol}: {e}")
-        st.warning(f"Could not fetch data for {symbol}. Showing Mock Data.")
-        return get_mock_data(symbol)
+        error_msg = f"Yahoo Finance fetch failed for {symbol}: {str(e)}"
+        print(f"❌ {error_msg}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise Exception(error_msg)
 
 def fetch_live_data_alphavantage(symbol):
     """Fetches data using Alpha Vantage API."""
@@ -849,7 +912,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Navigation Controls
-col_nav1, col_nav2, col_nav3 = st.columns([3, 1, 1])
+col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([3, 1, 1, 1])
 available_stocks = get_available_stocks()
 stock_options = {get_friendly_name(ticker): ticker for ticker in available_stocks}
 display_names = list(stock_options.keys())
@@ -864,15 +927,74 @@ with col_nav2:
         st.cache_data.clear()
         st.rerun()
 
+with col_nav3:
+    if st.button("🔍 Debug", key="debug_btn", use_container_width=True, help="Show diagnostic information"):
+        st.session_state.show_debug = not st.session_state.get('show_debug', False)
+
 # Main Title
 st.markdown("<br>", unsafe_allow_html=True)
 st.title("Nuqta | AI Market Insight")
 
+# Debug Panel (if enabled)
+if st.session_state.get('show_debug', False):
+    with st.expander("🔍 Diagnostic Information", expanded=True):
+        st.subheader("Environment Check")
+        
+        # Check API keys
+        col_env1, col_env2 = st.columns(2)
+        with col_env1:
+            alpha_status = "✅ Set" if ALPHA_VANTAGE_KEY else "❌ Not Set"
+            st.write(f"**Alpha Vantage API Key:** {alpha_status}")
+        
+        with col_env2:
+            webhook_status = "✅ Set" if WEBHOOK_URL else "❌ Not Set"
+            st.write(f"**Discord Webhook:** {webhook_status}")
+        
+        # Test Yahoo Finance connection
+        st.subheader("API Connection Test")
+        test_symbol = st.text_input("Test Ticker", value="AAPL")
+        if st.button("🧪 Test Connection"):
+            with st.spinner("Testing Yahoo Finance connection..."):
+                try:
+                    test_ticker = yf.Ticker(test_symbol)
+                    test_data = test_ticker.history(period="5d", timeout=10)
+                    if not test_data.empty:
+                        st.success(f"✅ Successfully connected! Got {len(test_data)} rows for {test_symbol}")
+                        st.dataframe(test_data.tail())
+                    else:
+                        st.error(f"❌ Connection succeeded but returned empty data for {test_symbol}")
+                except Exception as e:
+                    st.error(f"❌ Connection failed: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc(), language='python')
+        
+        # System info
+        st.subheader("System Information")
+        import sys
+        import platform
+        st.write(f"**Python Version:** {sys.version}")
+        st.write(f"**Platform:** {platform.platform()}")
+        st.write(f"**yfinance Version:** {yf.__version__ if hasattr(yf, '__version__') else 'Unknown'}")
+        
+        # Cache info
+        st.subheader("Cache Status")
+        if st.button("🗑️ Clear All Caches"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("✅ All caches cleared!")
+
 # --- Main Logic ---
 
-# 1. Fetch Data
+    # 1. Fetch Data
 with st.spinner(f"Fetching Live Data for {symbol}..."):
-    data = fetch_live_data(symbol)
+    try:
+        data = fetch_live_data(symbol)
+    except Exception as e:
+        error_msg = f"Failed to fetch data for {symbol}: {str(e)}"
+        print(f"❌ {error_msg}")
+        st.error(f"⚠️ {error_msg}")
+        st.warning("🔄 Falling back to mock data. This may indicate network issues or API problems.")
+        data = get_mock_data(symbol)
 
 # 2. Load Models
 features = np.array([[data['sma_20'], data['sma_50'], data['rsi'], data['macd']]])
@@ -977,14 +1099,43 @@ with tab1:
             
             try:
                 if has_international_suffix or not ALPHA_VANTAGE_KEY:
-                    print(f"📊 Fetching historical data for {symbol} using Yahoo Finance...")
-                    ticker = yf.Ticker(symbol)
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=100)
-                    hist_data = ticker.history(start=start_date, end=end_date)
+                    print(f"📊 Fetching historical chart data for {symbol} using Yahoo Finance...")
                     
-                    if hist_data is None or hist_data.empty:
-                        raise ValueError(f"Yahoo Finance returned empty data for {symbol}")
+                    # Use retry logic for chart data
+                    max_chart_retries = 3
+                    chart_data_success = False
+                    hist_data = None
+                    
+                    for chart_attempt in range(max_chart_retries):
+                        try:
+                            ticker = yf.Ticker(symbol)
+                            end_date = datetime.now()
+                            start_date = end_date - timedelta(days=100)
+                            
+                            print(f"   Attempt {chart_attempt + 1}/{max_chart_retries}: Fetching from {start_date.date()} to {end_date.date()}...")
+                            hist_data = ticker.history(start=start_date, end=end_date, timeout=15)
+                            
+                            if hist_data is None:
+                                raise ValueError(f"Yahoo Finance returned None for {symbol}")
+                            
+                            if hist_data.empty:
+                                raise ValueError(f"Yahoo Finance returned empty DataFrame for {symbol}")
+                            
+                            print(f"   ✅ Received {len(hist_data)} rows of historical data")
+                            chart_data_success = True
+                            break
+                            
+                        except Exception as chart_error:
+                            if chart_attempt < max_chart_retries - 1:
+                                wait_time = 2 * (chart_attempt + 1)
+                                print(f"   ⚠️  Attempt {chart_attempt + 1} failed: {str(chart_error)}")
+                                print(f"   Retrying in {wait_time} seconds...")
+                                time.sleep(wait_time)
+                            else:
+                                raise chart_error
+                    
+                    if not chart_data_success or hist_data is None or hist_data.empty:
+                        raise ValueError(f"Failed to fetch chart data after {max_chart_retries} attempts")
                     
                     print(f"✅ Fetched {len(hist_data)} rows of historical data")
                     hist_data = hist_data.sort_index()
@@ -994,9 +1145,13 @@ with tab1:
                     required_cols = ['open', 'high', 'low', 'close', 'volume']
                     missing_cols = [col for col in required_cols if col not in hist_data.columns]
                     if missing_cols:
-                        raise ValueError(f"Missing required columns: {missing_cols}")
+                        raise ValueError(f"Missing required columns: {missing_cols}. Available: {list(hist_data.columns)}")
                     
                     hist_data = hist_data[required_cols]
+                    
+                    # Validate data has valid values
+                    if hist_data[['open', 'high', 'low', 'close']].isna().all().all():
+                        raise ValueError(f"All price data is NaN for {symbol}")
                 else:
                     print(f"📊 Fetching historical data for {symbol} using Alpha Vantage...")
                     ts = TimeSeries(key=ALPHA_VANTAGE_KEY, output_format='pandas')
@@ -1080,9 +1235,32 @@ with tab1:
                 error_msg = str(fetch_error)
                 print(f"❌ Error fetching chart data for {symbol}: {error_msg}")
                 import traceback
-                print(f"Traceback: {traceback.format_exc()}")
-                st.warning(f"⚠️ Could not load historical price data for {symbol}. Error: {error_msg}")
-                st.info("💡 This may be due to network issues, API rate limits, or the ticker not being available. Try refreshing the page.")
+                full_traceback = traceback.format_exc()
+                print(f"Full traceback:\n{full_traceback}")
+                
+                # Show detailed error in UI
+                st.error(f"❌ **Chart Data Error for {symbol}**")
+                st.warning(f"**Error Details:** {error_msg}")
+                
+                # Provide helpful troubleshooting info
+                troubleshooting = f"""
+                **Possible Causes:**
+                1. 🌐 Network connectivity issues on Hugging Face
+                2. ⏱️ Yahoo Finance API timeout or rate limiting
+                3. 🔑 API key issues (if using Alpha Vantage)
+                4. 📊 Ticker symbol not available or invalid
+                
+                **Troubleshooting Steps:**
+                - 🔄 Try refreshing the page
+                - ⏳ Wait a few minutes and try again (rate limits)
+                - 🔍 Check if the ticker symbol is correct
+                - 📝 Check the logs below for more details
+                """
+                st.info(troubleshooting)
+                
+                # Show error details in expander
+                with st.expander("🔍 View Technical Details"):
+                    st.code(full_traceback, language='python')
         else:
             st.warning("Charts unavailable in Mock Data mode.")
     except Exception as e:
@@ -1133,13 +1311,38 @@ with tab2:
             try:
                 if has_international_suffix or not ALPHA_VANTAGE_KEY:
                     print(f"📊 Fetching RSI data for {symbol} using Yahoo Finance...")
-                    ticker = yf.Ticker(symbol)
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=100)
-                    hist_data = ticker.history(start=start_date, end=end_date)
                     
-                    if hist_data is None or hist_data.empty:
-                        raise ValueError(f"Yahoo Finance returned empty data for {symbol}")
+                    # Use retry logic for RSI data
+                    max_rsi_retries = 3
+                    rsi_data_success = False
+                    hist_data = None
+                    
+                    for rsi_attempt in range(max_rsi_retries):
+                        try:
+                            ticker = yf.Ticker(symbol)
+                            end_date = datetime.now()
+                            start_date = end_date - timedelta(days=100)
+                            
+                            print(f"   Attempt {rsi_attempt + 1}/{max_rsi_retries}: Fetching RSI data...")
+                            hist_data = ticker.history(start=start_date, end=end_date, timeout=15)
+                            
+                            if hist_data is None or hist_data.empty:
+                                raise ValueError(f"Yahoo Finance returned empty data for {symbol}")
+                            
+                            rsi_data_success = True
+                            break
+                            
+                        except Exception as rsi_error:
+                            if rsi_attempt < max_rsi_retries - 1:
+                                wait_time = 2 * (rsi_attempt + 1)
+                                print(f"   ⚠️  Attempt {rsi_attempt + 1} failed: {str(rsi_error)}")
+                                print(f"   Retrying in {wait_time} seconds...")
+                                time.sleep(wait_time)
+                            else:
+                                raise rsi_error
+                    
+                    if not rsi_data_success or hist_data is None or hist_data.empty:
+                        raise ValueError(f"Failed to fetch RSI data after {max_rsi_retries} attempts")
                     
                     hist_data = hist_data.sort_index()
                     hist_data.columns = [col.lower() for col in hist_data.columns]
@@ -1250,8 +1453,11 @@ with tab2:
                 error_msg = str(fetch_error)
                 print(f"❌ Error fetching RSI data for {symbol}: {error_msg}")
                 import traceback
-                print(f"Traceback: {traceback.format_exc()}")
-                st.warning(f"⚠️ Could not load technical indicators for {symbol}. Error: {error_msg}")
+                full_traceback = traceback.format_exc()
+                print(f"Full traceback:\n{full_traceback}")
+                
+                st.error(f"❌ **Technical Indicators Error for {symbol}**")
+                st.warning(f"**Error Details:** {error_msg}")
                 st.info("💡 This may be due to network issues, API rate limits, or the ticker not being available. Try refreshing the page.")
         else:
             st.warning("Technical indicators unavailable in Mock Data mode.")
