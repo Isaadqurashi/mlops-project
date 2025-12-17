@@ -962,11 +962,8 @@ inject_custom_css()
 st.markdown("""
 <div class="nuqta-navbar">
     <div class="nuqta-brand">
-        <span style="font-size: 1.8rem;">🔷</span>
-        <span>Nuqta</span>
-    </div>
-    <div class="nuqta-nav-item">
-        <div class="nuqta-nav-label">📊 Select Ticker</div>
+        <span style="font-size: 2rem; filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.5));">💎</span>
+        <span style="background: linear-gradient(135deg, #D4AF37 0%, #10B981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.8rem; font-weight: 800;">Nuqta</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -982,7 +979,7 @@ with col_nav1:
     symbol = stock_options[selected_display]
 
 with col_nav2:
-    refresh_clicked = st.button("🔄 Refresh", key="refresh_btn", use_container_width=True)
+    refresh_clicked = st.button("🔄", key="refresh_btn", use_container_width=True, help="Refresh data")
     if refresh_clicked:
         st.cache_data.clear()
         st.rerun()
@@ -1142,6 +1139,70 @@ with tab1:
             source,
             color=source_color
         )
+
+    st.markdown("---")
+
+    # === AI TRADING SIGNAL CARD ===
+    try:
+        if models and 'classification' in models:
+            # Get prediction probability
+            features = np.array([[data['sma_20'], data['sma_50'], data['rsi'], data['macd']]])
+            proba = models['classification'].predict_proba(features)[0]
+            up_probability = proba[1]  # Probability of price going UP
+            
+            # Determine signal based on probability thresholds
+            if up_probability > 0.60:
+                signal = "STRONG BUY"
+                signal_color = "#10B981"  # Green
+                signal_emoji = "🚀"
+                signal_bg = "rgba(16, 185, 129, 0.15)"
+                border_color = "rgba(16, 185, 129, 0.5)"
+            elif up_probability < 0.40:
+                signal = "STRONG SELL"
+                signal_color = "#EF4444"  # Red
+                signal_emoji = "📉"
+                signal_bg = "rgba(239, 68, 68, 0.15)"
+                border_color = "rgba(239, 68, 68, 0.5)"
+            else:
+                signal = "HOLD"
+                signal_color = "#F59E0B"  # Yellow/Amber
+                signal_emoji = "⏸️"
+                signal_bg = "rgba(245, 158, 11, 0.15)"
+                border_color = "rgba(245, 158, 11, 0.5)"
+            
+            confidence_pct = up_probability * 100 if up_probability > 0.5 else (1 - up_probability) * 100
+            
+            # Render the AI Trading Signal Card
+            signal_card_html = f'''
+            <div style="
+                background: {signal_bg};
+                border: 2px solid {border_color};
+                border-radius: 16px;
+                padding: 1.5rem 2rem;
+                text-align: center;
+                margin: 1rem 0;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            ">
+                <div style="color: #9CA3AF; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">
+                    🤖 AI Trading Signal
+                </div>
+                <div style="font-size: 2.5rem; font-weight: 800; color: {signal_color}; font-family: 'Outfit', sans-serif; margin: 0.5rem 0;">
+                    {signal_emoji} {signal}
+                </div>
+                <div style="color: #9CA3AF; font-size: 1rem; margin-top: 0.5rem;">
+                    Confidence: <span style="color: {signal_color}; font-weight: 700;">{confidence_pct:.1f}%</span>
+                </div>
+                <div style="color: #6B7280; font-size: 0.75rem; margin-top: 0.75rem;">
+                    Based on SMA, RSI & MACD indicators | {get_friendly_name(symbol)}
+                </div>
+            </div>
+            '''
+            st.markdown(signal_card_html, unsafe_allow_html=True)
+        else:
+            st.warning("⚠️ Classification model not available for trading signals.")
+    except Exception as signal_error:
+        print(f"❌ AI Trading Signal error: {signal_error}")
+        st.warning(f"⚠️ Could not generate trading signal: {str(signal_error)[:100]}")
 
     st.markdown("---")
 
