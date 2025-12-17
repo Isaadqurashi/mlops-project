@@ -1,7 +1,5 @@
 import os
-import requests
 import pandas as pd
-from typing import Optional
 from prefect import flow, task
 from src.ingestion.ingest import fetch_daily_data
 from src.processing.features import process_data

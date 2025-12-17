@@ -1,13 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
 import joblib
 import os
-import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
-from alpha_vantage.techindicators import TechIndicators
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime, timedelta
 from dotenv import load_dotenv

@@ -9,7 +9,7 @@ import joblib
 import numpy as np
 import hashlib
 from datetime import datetime, timedelta
-from typing import Dict, Set
+from typing import Dict
 import yfinance as yf
 from alpha_vantage.timeseries import TimeSeries
 from dotenv import load_dotenv

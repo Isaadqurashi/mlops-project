@@ -4,7 +4,6 @@ import joblib
 import pandas as pd
 import numpy as np
 import os
-from typing import List
 
 app = FastAPI(title="Stock Prediction API", version="1.0.0")
 
