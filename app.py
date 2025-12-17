@@ -1194,50 +1194,25 @@ with tab1:
                 )])
                 
                 fig.update_layout(
+                    template="plotly_dark",
                     title={
                         'text': f"{get_friendly_name(symbol)} Daily Price",
                         'x': 0.5,
                         'xanchor': 'center',
-                        'font': {'size': 20, 'color': '#E5E7EB', 'family': 'Outfit'}
                     },
                     xaxis_title="Date",
                     yaxis_title="Price",
-                    paper_bgcolor='#1A202C',
-                    plot_bgcolor='#2D3748',
-                    font={'color': '#9CA3AF', 'family': 'Inter'},
-                    xaxis=dict(
-                        gridcolor='rgba(212, 175, 55, 0.1)',
-                        gridwidth=1,
-                        showgrid=True,
-                        zeroline=False,
-                        linecolor='rgba(212, 175, 55, 0.3)',
-                    ),
-                    yaxis=dict(
-                        gridcolor='rgba(212, 175, 55, 0.1)',
-                        gridwidth=1,
-                        showgrid=True,
-                        zeroline=False,
-                        linecolor='rgba(212, 175, 55, 0.3)',
-                    ),
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="left",
-                        x=0,
-                        font={'color': '#9CA3AF'},
-                        bgcolor='rgba(0,0,0,0)',
-                    ),
-                    margin=dict(l=0, r=0, t=50, b=0),
                     height=500,
-                    autosize=True,
+                    width=None,
+                    xaxis=dict(showgrid=True),
+                    yaxis=dict(showgrid=True),
                 )
                 
+                # Display chart with explicit config
                 st.plotly_chart(
                     fig, 
-                    use_container_width=True, 
-                    config={'displayModeBar': True, 'displaylogo': False},
-                    key=f"price_chart_{symbol}"
+                    use_container_width=True,
+                    theme="streamlit"
                 )
                 print(f"✅ Chart displayed successfully for {symbol}")
                 
@@ -1396,7 +1371,6 @@ with tab2:
                     mode='lines',
                     name='RSI (14)',
                     line=dict(color='#D4AF37', width=2.5),
-                    hovertemplate='<b>RSI</b>: %{y:.2f}<br>Date: %{x}<extra></extra>'
                 ))
                 
                 fig_rsi.add_hline(
@@ -1405,7 +1379,6 @@ with tab2:
                     line_color="#EF4444",
                     annotation_text="Overbought (70)",
                     annotation_position="right",
-                    annotation_font_color="#EF4444"
                 )
                 fig_rsi.add_hline(
                     y=30,
@@ -1413,55 +1386,27 @@ with tab2:
                     line_color="#10B981",
                     annotation_text="Oversold (30)",
                     annotation_position="right",
-                    annotation_font_color="#10B981"
                 )
                 
                 fig_rsi.update_layout(
+                    template="plotly_dark",
                     title={
                         'text': "Relative Strength Index (14)",
                         'x': 0.5,
                         'xanchor': 'center',
-                        'font': {'size': 20, 'color': '#E5E7EB', 'family': 'Outfit'}
                     },
                     xaxis_title="Date",
                     yaxis_title="RSI",
-                    paper_bgcolor='#1A202C',
-                    plot_bgcolor='#2D3748',
-                    font={'color': '#9CA3AF', 'family': 'Inter'},
-                    xaxis=dict(
-                        gridcolor='rgba(212, 175, 55, 0.1)',
-                        gridwidth=1,
-                        showgrid=True,
-                        zeroline=False,
-                        linecolor='rgba(212, 175, 55, 0.3)',
-                    ),
-                    yaxis=dict(
-                        gridcolor='rgba(212, 175, 55, 0.1)',
-                        gridwidth=1,
-                        showgrid=True,
-                        zeroline=False,
-                        linecolor='rgba(212, 175, 55, 0.3)',
-                        range=[0, 100]
-                    ),
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="left",
-                        x=0,
-                        font={'color': '#9CA3AF'},
-                        bgcolor='rgba(0,0,0,0)',
-                    ),
-                    margin=dict(l=0, r=0, t=50, b=0),
                     height=500,
-                    autosize=True,
+                    width=None,
+                    xaxis=dict(showgrid=True),
+                    yaxis=dict(showgrid=True, range=[0, 100]),
                 )
                 
                 st.plotly_chart(
                     fig_rsi, 
-                    use_container_width=True, 
-                    config={'displayModeBar': True, 'displaylogo': False},
-                    key=f"rsi_chart_{symbol}"
+                    use_container_width=True,
+                    theme="streamlit"
                 )
                 print(f"✅ RSI chart displayed successfully for {symbol}")
                 
