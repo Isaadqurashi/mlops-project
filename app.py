@@ -19,8 +19,8 @@ from functools import wraps
 # Load env vars (for local support)
 load_dotenv()
 
-# Configure Plotly renderer for Hugging Face Spaces
-pio.renderers.default = "browser"
+# NOTE: Do NOT set pio.renderers.default here as it conflicts with Streamlit in headless environments.
+# pio.renderers.default = "browser"  # Removed to fix chart display issues on Hugging Face
 
 # --- Config ---
 st.set_page_config(
@@ -1143,6 +1143,12 @@ with tab1:
                     
                     print(f"✅ Fetched {len(hist_data)} rows of historical data")
                     hist_data = hist_data.sort_index()
+                    
+                    # CRITICAL FIX: Convert timezone-aware index to tz-naive for Plotly compatibility
+                    if hist_data.index.tz is not None:
+                        print(f"   Converting timezone-aware index ({hist_data.index.tz}) to tz-naive...")
+                        hist_data.index = hist_data.index.tz_localize(None)
+                    
                     hist_data.columns = [col.lower() for col in hist_data.columns]
                     
                     # Validate required columns exist
@@ -1330,6 +1336,12 @@ with tab2:
                         raise ValueError(f"Failed to fetch RSI data after {max_rsi_retries} attempts")
                     
                     hist_data = hist_data.sort_index()
+                    
+                    # CRITICAL FIX: Convert timezone-aware index to tz-naive for Plotly compatibility
+                    if hist_data.index.tz is not None:
+                        print(f"   Converting timezone-aware index ({hist_data.index.tz}) to tz-naive...")
+                        hist_data.index = hist_data.index.tz_localize(None)
+                    
                     hist_data.columns = [col.lower() for col in hist_data.columns]
                     hist_data = hist_data[['open', 'high', 'low', 'close', 'volume']]
                 else:
