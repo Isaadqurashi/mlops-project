@@ -228,21 +228,26 @@ def inject_custom_css():
         transform: translateY(-2px);
     }
     
-    /* Tabs Styling - Gold & Emerald */
+    /* Tabs Styling - Gold & Emerald - Full Width */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
+        width: 100%;
+        display: flex;
     }
     
     .stTabs [data-baseweb="tab"] {
         background-color: rgba(30, 41, 59, 0.6);
         border: 1px solid rgba(212, 175, 55, 0.2);
         border-radius: 10px 10px 0 0;
-        padding: 0.75rem 1.5rem;
+        padding: 1rem 2rem;
         color: #9CA3AF;
-        font-weight: 500;
+        font-weight: 600;
         transition: all 0.3s ease;
         font-family: 'Inter', sans-serif;
+        flex: 1;
+        text-align: center;
+        font-size: 1rem;
     }
     
     .stTabs [aria-selected="true"] {
@@ -891,6 +896,61 @@ def get_mock_data(symbol):
         "is_mock": True
     }
 
+# --- Market Matrix: Correlation Heatmap ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_correlation_matrix(tickers):
+    """
+    Fetches closing prices for multiple tickers and calculates correlation matrix.
+    Uses daily returns for more meaningful correlation analysis.
+    """
+    print(f"📊 Fetching correlation data for {len(tickers)} stocks...")
+    
+    # Collect closing prices for all tickers
+    price_data = {}
+    failed_tickers = []
+    
+    for ticker in tickers:
+        try:
+            # Use yfinance for all tickers
+            yf_ticker = yf.Ticker(ticker)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=60)  # 60 days for robust correlation
+            
+            hist = yf_ticker.history(start=start_date, end=end_date, timeout=10)
+            
+            if hist is not None and not hist.empty and len(hist) > 10:
+                # Get closing prices
+                hist.columns = [col.lower() for col in hist.columns]
+                if 'close' in hist.columns:
+                    # Convert to tz-naive if needed
+                    if hist.index.tz is not None:
+                        hist.index = hist.index.tz_localize(None)
+                    price_data[ticker] = hist['close']
+                    print(f"   ✅ {ticker}: {len(hist)} days")
+            else:
+                failed_tickers.append(ticker)
+                print(f"   ❌ {ticker}: No data")
+        except Exception as e:
+            failed_tickers.append(ticker)
+            print(f"   ❌ {ticker}: {str(e)[:50]}")
+    
+    if len(price_data) < 2:
+        print("❌ Not enough data for correlation matrix")
+        return None, failed_tickers
+    
+    # Create DataFrame with aligned dates
+    df = pd.DataFrame(price_data)
+    
+    # Calculate daily returns (more meaningful for correlation)
+    returns = df.pct_change().dropna()
+    
+    # Calculate correlation matrix
+    corr_matrix = returns.corr()
+    
+    print(f"✅ Correlation matrix calculated: {corr_matrix.shape[0]}x{corr_matrix.shape[1]}")
+    
+    return corr_matrix, failed_tickers
+
 # --- Initialize Session State for Discord Alerts ---
 if 'last_sent_alert' not in st.session_state:
     st.session_state.last_sent_alert = None
@@ -1036,9 +1096,10 @@ if models:
                 st.toast("🔔 Discord Alert Sent!", icon="✅")
 
 # --- Layout: Tabs with Icons ---
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     '📊 Dashboard', 
-    '🧠 Deep Dive'
+    '📈 Technical Analysis',
+    '🔗 Market Matrix'
 ])
 
 # === TAB 1: DASHBOARD ===
@@ -1447,6 +1508,121 @@ with tab2:
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         st.error(f"Could not load technical indicators: {error_msg}")
+
+# === TAB 3: MARKET MATRIX ===
+with tab3:
+    st.header('🔗 Market Matrix')
+    st.markdown("""
+    <div style="color: #9CA3AF; margin-bottom: 1.5rem;">
+        Discover how stocks move together. <strong style="color: #10B981;">Green</strong> = positive correlation (move together), 
+        <strong style="color: #EF4444;">Red</strong> = negative correlation (move opposite).
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Fetch correlation data for all available stocks
+    with st.spinner("📊 Calculating market correlations... This may take a moment."):
+        try:
+            corr_matrix, failed_tickers = fetch_correlation_matrix(tuple(available_stocks))
+            
+            if corr_matrix is not None and not corr_matrix.empty:
+                # Create friendly labels for the heatmap
+                labels = [get_friendly_name(t).split(' (')[0] for t in corr_matrix.columns]
+                
+                # Create heatmap using Plotly
+                fig_heatmap = go.Figure(data=go.Heatmap(
+                    z=corr_matrix.values,
+                    x=labels,
+                    y=labels,
+                    colorscale=[
+                        [0, '#EF4444'],      # Red for -1
+                        [0.5, '#1A202C'],    # Dark for 0
+                        [1, '#10B981']       # Green for +1
+                    ],
+                    zmin=-1,
+                    zmax=1,
+                    text=[[f"{val:.2f}" for val in row] for row in corr_matrix.values],
+                    texttemplate="%{text}",
+                    textfont={"size": 8},
+                    hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Correlation: %{z:.3f}<extra></extra>",
+                    colorbar=dict(
+                        title="Correlation",
+                        tickvals=[-1, -0.5, 0, 0.5, 1],
+                        ticktext=["-1.0 (Inverse)", "-0.5", "0 (None)", "0.5", "1.0 (Same)"],
+                    )
+                ))
+                
+                fig_heatmap.update_layout(
+                    template="plotly_dark",
+                    title={
+                        'text': "📊 Stock Correlation Matrix (60-Day Returns)",
+                        'x': 0.5,
+                        'xanchor': 'center',
+                        'font': {'size': 18, 'color': '#D4AF37'}
+                    },
+                    height=700,
+                    xaxis=dict(
+                        tickangle=45,
+                        side='bottom',
+                        tickfont={'size': 9}
+                    ),
+                    yaxis=dict(
+                        tickfont={'size': 9},
+                        autorange='reversed'
+                    ),
+                    margin=dict(l=100, r=50, t=80, b=120),
+                )
+                
+                st.plotly_chart(fig_heatmap, use_container_width=True, theme="streamlit")
+                
+                # Show insights
+                st.markdown("---")
+                st.subheader("📈 Key Insights")
+                
+                col_insight1, col_insight2 = st.columns(2)
+                
+                with col_insight1:
+                    # Find most correlated pairs (excluding self-correlation)
+                    corr_pairs = []
+                    for i in range(len(corr_matrix.columns)):
+                        for j in range(i+1, len(corr_matrix.columns)):
+                            corr_pairs.append({
+                                'pair': f"{corr_matrix.columns[i]} & {corr_matrix.columns[j]}",
+                                'corr': corr_matrix.iloc[i, j]
+                            })
+                    
+                    if corr_pairs:
+                        sorted_pairs = sorted(corr_pairs, key=lambda x: x['corr'], reverse=True)
+                        
+                        st.markdown("**🟢 Most Correlated (Move Together)**")
+                        for p in sorted_pairs[:5]:
+                            st.markdown(f"• {p['pair']}: `{p['corr']:.2f}`")
+                
+                with col_insight2:
+                    if corr_pairs:
+                        # Most negatively correlated
+                        neg_sorted = sorted(corr_pairs, key=lambda x: x['corr'])
+                        
+                        st.markdown("**🔴 Most Inversely Correlated**")
+                        for p in neg_sorted[:5]:
+                            if p['corr'] < 0:
+                                st.markdown(f"• {p['pair']}: `{p['corr']:.2f}`")
+                
+                # Show failed tickers if any
+                if failed_tickers:
+                    with st.expander(f"⚠️ {len(failed_tickers)} stocks excluded (no data)"):
+                        st.write(", ".join(failed_tickers))
+            else:
+                st.error("❌ Could not calculate correlation matrix. Not enough data available.")
+                if failed_tickers:
+                    st.warning(f"Failed to fetch data for: {', '.join(failed_tickers)}")
+                    
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Market Matrix error: {error_msg}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            st.error(f"❌ Could not load Market Matrix: {error_msg}")
+            st.info("💡 Try refreshing the page. This feature requires fetching data for all stocks.")
 
 # Footer
 st.markdown("---")
