@@ -36,7 +36,6 @@ ENV/
 *.swo
 
 # Project Specific
-data/
 reports/
 !data/.gitkeep
 !models/.gitkeep
