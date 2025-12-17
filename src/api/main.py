@@ -2,8 +2,6 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 import joblib
 import pandas as pd
-import numpy as np
-import os
 
 app = FastAPI(title="Stock Prediction API", version="1.0.0")
 

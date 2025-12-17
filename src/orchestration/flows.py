@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.orchestration.notifications import notify_discord
+# Add "# noqa: E402" to the end of this line to silence the error
+from src.orchestration.notifications import notify_discord  # noqa: E402
 
 # Optional import for data validation (may fail due to deepchecks compatibility)
 try:
