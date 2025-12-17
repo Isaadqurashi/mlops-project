@@ -876,19 +876,6 @@ def fetch_live_data_yahoo(symbol):
         data['rsi'] = 100 - (100 / (1 + rs))
         
         data['returns'] = data['close'].pct_change()
-        # Calculate Additional Stationary Features (to match training logic from src/processing/features.py)
-        # 1. Log Returns
-        data['log_return'] = np.log(data['close'] / data['close'].shift(1))
-        
-        # 2. Daily Returns (already calculated as 'returns', but ensuring consistent naming for feature dict)
-        data['pct_return'] = data['close'].pct_change()
-        
-        # 3. Rolling Volatility (using log returns for consistency with training)
-        data['volatility_20'] = data['log_return'].rolling(window=20).std()
-        
-        # 4. Price Z-Score (Normalized price)
-        data['price_zscore'] = (data['close'] - data['close'].rolling(window=50).mean()) / data['close'].rolling(window=50).std()
-
         latest = data.iloc[-1]
         prev = data.iloc[-2] if len(data) > 1 else latest
         
@@ -901,11 +888,7 @@ def fetch_live_data_yahoo(symbol):
             "sma_50": float(latest['sma_50']) if not np.isnan(latest['sma_50']) else float(latest['close']),
             "rsi": float(latest['rsi']) if not np.isnan(latest['rsi']) else 50.0,
             "macd": float(latest['macd']) if not np.isnan(latest['macd']) else 0.0,
-            "log_return": float(latest['log_return']) if not np.isnan(latest['log_return']) else 0.0,
-            "pct_return": float(latest['pct_return']) if not np.isnan(latest['pct_return']) else 0.0,
-            "volatility_20": float(latest['volatility_20']) if not np.isnan(latest['volatility_20']) else 0.0,
-            "price_zscore": float(latest['price_zscore']) if not np.isnan(latest['price_zscore']) else 0.0,
-            "volatility": float(latest['volatility']) if not np.isnan(latest['volatility']) else 0.0, # Keep for backward compatibility/display
+            "volatility": float(latest['volatility']) if not np.isnan(latest['volatility']) else 0.0,
             "is_mock": False
         }
         
@@ -941,12 +924,6 @@ def fetch_live_data_alphavantage(symbol):
         data['rsi'] = 100 - (100 / (1 + rs))
         
         data['returns'] = data['close'].pct_change()
-        # Calculate Additional Stationary Features
-        data['log_return'] = np.log(data['close'] / data['close'].shift(1))
-        data['pct_return'] = data['close'].pct_change()
-        data['volatility_20'] = data['log_return'].rolling(window=20).std()
-        data['price_zscore'] = (data['close'] - data['close'].rolling(window=50).mean()) / data['close'].rolling(window=50).std()
-
         latest = data.iloc[-1]
         prev = data.iloc[-2]
         
@@ -959,11 +936,7 @@ def fetch_live_data_alphavantage(symbol):
             "sma_50": float(latest['sma_50']) if not np.isnan(latest['sma_50']) else float(latest['close']),
             "rsi": float(latest['rsi']) if not np.isnan(latest['rsi']) else 50.0,
             "macd": float(latest['macd']) if not np.isnan(latest['macd']) else 0.0,
-            "log_return": float(latest['log_return']) if not np.isnan(latest['log_return']) else 0.0,
-            "pct_return": float(latest['pct_return']) if not np.isnan(latest['pct_return']) else 0.0,
-            "volatility_20": float(latest['volatility_20']) if not np.isnan(latest['volatility_20']) else 0.0,
-            "price_zscore": float(latest['price_zscore']) if not np.isnan(latest['price_zscore']) else 0.0,
-            "volatility": float(latest['volatility']) if not np.isnan(latest['volatility']) else 0.0, # Keep for display
+            "volatility": float(latest['volatility']) if not np.isnan(latest['volatility']) else 0.0,
             "is_mock": False
         }
     except Exception as e:
@@ -980,11 +953,7 @@ def get_mock_data(symbol):
         "sma_50": price * 0.90,
         "rsi": np.random.uniform(30, 70),
         "macd": np.random.uniform(-1, 1),
-        "log_return": np.random.uniform(-0.02, 0.02),
-        "pct_return": np.random.uniform(-0.02, 0.02),
-        "volatility_20": np.random.uniform(0.01, 0.03),
-        "price_zscore": np.random.uniform(-1.5, 1.5),
-        "volatility": np.random.uniform(0.01, 0.03), # Keep for display
+        "volatility": np.random.uniform(0.01, 0.03),
         "is_mock": True
     }
 
@@ -1170,16 +1139,8 @@ with st.spinner(f"Fetching Live Data for {symbol}..."):
         data = get_mock_data(symbol)
 
 # 2. Load Models
-features = np.array([[
-    data['sma_20'], 
-    data['sma_50'], 
-    data['rsi'], 
-    data['macd'],
-    data.get('log_return', 0.0), # Use .get with defaults for safety
-    data.get('pct_return', 0.0),
-    data.get('volatility_20', 0.0),
-    data.get('price_zscore', 0.0)
-]])
+# 2. Load Models
+features = np.array([[data['sma_20'], data['sma_50'], data['rsi'], data['macd']]])
 models = load_models_local(symbol)
 
 # 3. Calculate Predictions
@@ -1273,16 +1234,8 @@ with tab1:
         if models and 'classification' in models:
             # Get prediction probability
             # Matching the same 8-feature structure as used in model input
-            features = np.array([[
-                data['sma_20'], 
-                data['sma_50'], 
-                data['rsi'], 
-                data['macd'],
-                data.get('log_return', 0.0),
-                data.get('pct_return', 0.0),
-                data.get('volatility_20', 0.0),
-                data.get('price_zscore', 0.0)
-            ]])
+            # Get prediction probability
+            features = np.array([[data['sma_20'], data['sma_50'], data['rsi'], data['macd']]])
             proba = models['classification'].predict_proba(features)[0]
             up_probability = proba[1]  # Probability of price going UP
             
