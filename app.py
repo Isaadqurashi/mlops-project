@@ -6,6 +6,7 @@ import joblib
 import os
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from alpha_vantage.techindicators import TechIndicators
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime, timedelta
@@ -17,6 +18,9 @@ from functools import wraps
 
 # Load env vars (for local support)
 load_dotenv()
+
+# Configure Plotly renderer for Hugging Face Spaces
+pio.renderers.default = "browser"
 
 # --- Config ---
 st.set_page_config(
@@ -1198,8 +1202,8 @@ with tab1:
                     },
                     xaxis_title="Date",
                     yaxis_title="Price",
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='#1A202C',
+                    plot_bgcolor='#2D3748',
                     font={'color': '#9CA3AF', 'family': 'Inter'},
                     xaxis=dict(
                         gridcolor='rgba(212, 175, 55, 0.1)',
@@ -1226,9 +1230,15 @@ with tab1:
                     ),
                     margin=dict(l=0, r=0, t=50, b=0),
                     height=500,
+                    autosize=True,
                 )
                 
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
+                st.plotly_chart(
+                    fig, 
+                    use_container_width=True, 
+                    config={'displayModeBar': True, 'displaylogo': False},
+                    key=f"price_chart_{symbol}"
+                )
                 print(f"✅ Chart displayed successfully for {symbol}")
                 
             except Exception as fetch_error:
@@ -1415,8 +1425,8 @@ with tab2:
                     },
                     xaxis_title="Date",
                     yaxis_title="RSI",
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='#1A202C',
+                    plot_bgcolor='#2D3748',
                     font={'color': '#9CA3AF', 'family': 'Inter'},
                     xaxis=dict(
                         gridcolor='rgba(212, 175, 55, 0.1)',
@@ -1444,9 +1454,15 @@ with tab2:
                     ),
                     margin=dict(l=0, r=0, t=50, b=0),
                     height=500,
+                    autosize=True,
                 )
                 
-                st.plotly_chart(fig_rsi, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
+                st.plotly_chart(
+                    fig_rsi, 
+                    use_container_width=True, 
+                    config={'displayModeBar': True, 'displaylogo': False},
+                    key=f"rsi_chart_{symbol}"
+                )
                 print(f"✅ RSI chart displayed successfully for {symbol}")
                 
             except Exception as fetch_error:
