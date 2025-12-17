@@ -189,9 +189,10 @@ def inject_custom_css():
         margin-bottom: 1rem;
     }
     
-    /* Hide Sidebar Completely */
+    /* Sidebar Styling */
     [data-testid="stSidebar"] {
-        display: none;
+        background-color: #1A202C;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     /* Top Navigation Bar - Horizontal Ticker Selection */
@@ -1072,7 +1073,7 @@ with col_nav3:
 
 # Main Title - Custom HTML for Hugging Face compatibility
 st.markdown("""
-<div style="text-align: center; padding: 1rem 0; margin-bottom: 1rem;">
+<div style="text-align: center; padding: 1rem 0; margin-bottom: 1rem; position: relative; z-index: 9999; visibility: visible !important;">
     <h1 style="
         font-family: 'Outfit', sans-serif;
         font-weight: 800;
