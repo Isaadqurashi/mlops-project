@@ -37,4 +37,4 @@ RUN mkdir -p data/processed reports && \
 EXPOSE 7860
 
 # Command to run Streamlit
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port", "7860", "--server.address", "0.0.0.0"]
+CMD ["app", "run", "streamlit_app.py", "--server.port", "7860", "--server.address", "0.0.0.0"]
