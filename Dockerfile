@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y git
 # This downloads the code directly without needing git installed
 RUN pip install https://github.com/twopirllc/pandas-ta/archive/development.zip
 # ------------------------------------------
-    
+
 # 1. Copy the requirements file
 COPY requirements.txt .
 
@@ -30,7 +30,7 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.9/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
