@@ -18,6 +18,12 @@ jobs:
       - name: Install Python dependencies
         run: pip install huggingface_hub
 
+      - name: Verify models exist
+        run: |
+          echo "Checking for model files..."
+          find models -name "*.pkl" | head -10
+          echo "Model files found: $(find models -name '*.pkl' | wc -l)"
+      
       - name: Push to Hub (Python Mode)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -25,17 +31,31 @@ jobs:
           python -c "
           from huggingface_hub import HfApi
           import os
+          from pathlib import Path
           
           api = HfApi()
-          print('Uploading files to Hugging Face...')
+          print('🚀 Starting upload to Hugging Face...')
+          
+          # Verify models directory exists
+          models_dir = Path('models')
+          if models_dir.exists():
+              pkl_files = list(models_dir.rglob('*.pkl'))
+              print(f'📦 Found {len(pkl_files)} model files to upload')
+              if len(pkl_files) > 0:
+                  print(f'   Example: {pkl_files[0]}')
+              else:
+                  print('⚠️  WARNING: No .pkl files found in models directory!')
+          else:
+              print('❌ ERROR: models directory does not exist!')
           
           # Upload the entire current directory to the Space
+          # Models directory is explicitly included
           api.upload_folder(
               folder_path='.',
               repo_id='nvvy/nuqta-Stock-predictor',
               repo_type='space',
               token=os.environ['HF_TOKEN'],
-              ignore_patterns=['.git', '.github', '__pycache__', 'vocab.txt']
+              ignore_patterns=['.git', '.github', '__pycache__', 'vocab.txt', '*.pyc', '.DS_Store', 'data/', 'reports/']
           )
-          print('Upload complete!')
+          print('✅ Upload complete!')
           "

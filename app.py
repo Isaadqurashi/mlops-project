@@ -24,6 +24,31 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- Model Verification on Startup ---
+def verify_models_on_startup():
+    """Verifies that models are accessible at startup."""
+    from pathlib import Path
+    BASE_DIR = Path(__file__).resolve().parent
+    models_dir = BASE_DIR / "models"
+    
+    if not models_dir.exists():
+        print(f"❌ CRITICAL: Models directory not found at {models_dir}")
+        return False
+    
+    pkl_files = list(models_dir.rglob("*.pkl"))
+    if len(pkl_files) == 0:
+        print(f"❌ CRITICAL: No model files (.pkl) found in {models_dir}")
+        return False
+    
+    print(f"✅ Model verification: Found {len(pkl_files)} model files in {models_dir}")
+    print(f"   Example models: {[f.parent.name for f in pkl_files[:5]]}")
+    return True
+
+# Run verification on startup
+if 'models_verified' not in st.session_state:
+    verify_models_on_startup()
+    st.session_state.models_verified = True
+
 # --- Start Background Monitor for Discord Notifications ---
 # This runs in a separate thread and checks all tickers every 3 minutes
 if 'monitor_started' not in st.session_state:
@@ -545,19 +570,27 @@ TICKER_NAMES = {
 
 def get_available_stocks():
     """Dynamically scans models directory for available trained models."""
-    available = []
-    models_dir = "models"
+    from pathlib import Path
     
-    if os.path.exists(models_dir):
-        for item in os.listdir(models_dir):
-            symbol_dir = os.path.join(models_dir, item)
-            if os.path.isdir(symbol_dir):
-                reg_path = os.path.join(symbol_dir, "regression_model.pkl")
-                if os.path.exists(reg_path):
-                    available.append(item)
+    available = []
+    BASE_DIR = Path(__file__).resolve().parent
+    models_dir = BASE_DIR / "models"
+    
+    if models_dir.exists():
+        for item in models_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('.'):
+                reg_path = item / "regression_model.pkl"
+                if reg_path.exists():
+                    available.append(item.name)
+                    print(f"✅ Found models for {item.name}")
     
     available.sort()
-    return available if available else ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "NVDA"]
+    if not available:
+        print("⚠️  No models found, using default tickers")
+        return ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "NVDA"]
+    
+    print(f"📊 Found {len(available)} stocks with trained models")
+    return available
 
 def get_friendly_name(ticker: str) -> str:
     """Returns friendly display name for a ticker."""
@@ -567,21 +600,66 @@ def get_friendly_name(ticker: str) -> str:
 @st.cache_resource
 def load_models_local(symbol):
     """Loads models directly from disk for the specific symbol."""
-    model_path = f"models/{symbol}"
+    from pathlib import Path
+    
+    # Get absolute path - works in both local and Hugging Face environments
+    BASE_DIR = Path(__file__).resolve().parent
+    model_path = BASE_DIR / "models" / symbol
+    
     models = {}
-    try:
-        models['regression'] = joblib.load(f"{model_path}/regression_model.pkl")
-        models['classification'] = joblib.load(f"{model_path}/classification_model.pkl")
-        models['clustering'] = joblib.load(f"{model_path}/clustering_model.pkl")
+    errors = []
+    
+    # Check if directory exists
+    if not model_path.exists():
+        error_msg = f"Model directory not found: {model_path}"
+        print(f"❌ {error_msg}")
+        errors.append(error_msg)
+    else:
+        print(f"✅ Found model directory: {model_path}")
+        
+        # Try to load each model with detailed error reporting
+        model_files = {
+            'regression': model_path / "regression_model.pkl",
+            'classification': model_path / "classification_model.pkl",
+            'clustering': model_path / "clustering_model.pkl"
+        }
+        
+        for model_type, model_file in model_files.items():
+            if not model_file.exists():
+                error_msg = f"Model file not found: {model_file}"
+                print(f"❌ {error_msg}")
+                errors.append(error_msg)
+            else:
+                try:
+                    print(f"📦 Loading {model_type} model from {model_file}...")
+                    models[model_type] = joblib.load(model_file)
+                    print(f"✅ Successfully loaded {model_type} model")
+                except Exception as e:
+                    error_msg = f"Failed to load {model_type} model from {model_file}: {str(e)}"
+                    print(f"❌ {error_msg}")
+                    errors.append(error_msg)
+                    import traceback
+                    print(f"Traceback: {traceback.format_exc()}")
+    
+    # If we have some models but not all, still return what we have
+    if models:
+        if errors:
+            print(f"⚠️  Warning: Some models failed to load. Loaded: {list(models.keys())}")
         return models
-    except Exception as e:
-        if symbol != "AAPL":
-             try:
-                 return load_models_local("AAPL")
-             except:
-                 pass
-        st.error(f"Failed to load models for {symbol}: {e}")
-        return None
+    
+    # If no models loaded, try fallback to AAPL
+    if symbol != "AAPL" and not models:
+        print(f"⚠️  Attempting fallback to AAPL models...")
+        try:
+            return load_models_local("AAPL")
+        except Exception as fallback_error:
+            print(f"❌ Fallback to AAPL also failed: {fallback_error}")
+    
+    # If we get here, nothing worked
+    error_summary = "\n".join(errors) if errors else "Unknown error"
+    st.error(f"⚠️ Failed to load models for {symbol}:\n{error_summary}")
+    print(f"❌ All model loading attempts failed for {symbol}")
+    return None
 
 from src.orchestration.notifications import notify_discord
 
