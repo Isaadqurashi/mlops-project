@@ -973,77 +973,124 @@ with tab1:
     try:
         if not data['is_mock']:
             has_international_suffix = any(symbol.endswith(suffix) for suffix in ['.KA', '.NS', '.L', '.T', '.HK', '.DE'])
+            hist_data = None
             
-            if has_international_suffix or not ALPHA_VANTAGE_KEY:
-                ticker = yf.Ticker(symbol)
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=100)
-                hist_data = ticker.history(start=start_date, end=end_date)
-                hist_data = hist_data.sort_index()
-                hist_data.columns = [col.lower() for col in hist_data.columns]
-                hist_data = hist_data[['open', 'high', 'low', 'close', 'volume']]
-            else:
-                ts = TimeSeries(key=ALPHA_VANTAGE_KEY, output_format='pandas')
-                hist_data, _ = ts.get_daily(symbol=symbol, outputsize='compact')
-                hist_data = hist_data.sort_index()
-                hist_data.columns = ['open', 'high', 'low', 'close', 'volume']
-            
-            fig = go.Figure(data=[go.Candlestick(
-                x=hist_data.index,
-                open=hist_data['open'],
-                high=hist_data['high'],
-                low=hist_data['low'],
-                close=hist_data['close'],
-                increasing_line_color='#10B981',
-                decreasing_line_color='#EF4444',
-                increasing_fillcolor='#10B981',
-                decreasing_fillcolor='#EF4444',
-            )])
-            
-            fig.update_layout(
-                title={
-                    'text': f"{get_friendly_name(symbol)} Daily Price",
-                    'x': 0.5,
-                    'xanchor': 'center',
-                    'font': {'size': 20, 'color': '#E5E7EB', 'family': 'Outfit'}
-                },
-                xaxis_title="Date",
-                yaxis_title="Price",
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font={'color': '#9CA3AF', 'family': 'Inter'},
-                xaxis=dict(
-                    gridcolor='rgba(212, 175, 55, 0.1)',
-                    gridwidth=1,
-                    showgrid=True,
-                    zeroline=False,
-                    linecolor='rgba(212, 175, 55, 0.3)',
-                ),
-                yaxis=dict(
-                    gridcolor='rgba(212, 175, 55, 0.1)',
-                    gridwidth=1,
-                    showgrid=True,
-                    zeroline=False,
-                    linecolor='rgba(212, 175, 55, 0.3)',
-                ),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="left",
-                    x=0,
-                    font={'color': '#9CA3AF'},
-                    bgcolor='rgba(0,0,0,0)',
-                ),
-                margin=dict(l=0, r=0, t=50, b=0),
-                height=500,
-            )
-            
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
+            try:
+                if has_international_suffix or not ALPHA_VANTAGE_KEY:
+                    print(f"📊 Fetching historical data for {symbol} using Yahoo Finance...")
+                    ticker = yf.Ticker(symbol)
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=100)
+                    hist_data = ticker.history(start=start_date, end=end_date)
+                    
+                    if hist_data is None or hist_data.empty:
+                        raise ValueError(f"Yahoo Finance returned empty data for {symbol}")
+                    
+                    print(f"✅ Fetched {len(hist_data)} rows of historical data")
+                    hist_data = hist_data.sort_index()
+                    hist_data.columns = [col.lower() for col in hist_data.columns]
+                    
+                    # Validate required columns exist
+                    required_cols = ['open', 'high', 'low', 'close', 'volume']
+                    missing_cols = [col for col in required_cols if col not in hist_data.columns]
+                    if missing_cols:
+                        raise ValueError(f"Missing required columns: {missing_cols}")
+                    
+                    hist_data = hist_data[required_cols]
+                else:
+                    print(f"📊 Fetching historical data for {symbol} using Alpha Vantage...")
+                    ts = TimeSeries(key=ALPHA_VANTAGE_KEY, output_format='pandas')
+                    hist_data, _ = ts.get_daily(symbol=symbol, outputsize='compact')
+                    
+                    if hist_data is None or hist_data.empty:
+                        raise ValueError(f"Alpha Vantage returned empty data for {symbol}")
+                    
+                    print(f"✅ Fetched {len(hist_data)} rows of historical data")
+                    hist_data = hist_data.sort_index()
+                    hist_data.columns = ['open', 'high', 'low', 'close', 'volume']
+                
+                # CRITICAL: Validate data is not empty before creating chart
+                if hist_data.empty:
+                    raise ValueError(f"Historical data is empty for {symbol}")
+                
+                if len(hist_data) == 0:
+                    raise ValueError(f"No data points found for {symbol}")
+                
+                # Validate data has valid values (not all NaN)
+                if hist_data[['open', 'high', 'low', 'close']].isna().all().all():
+                    raise ValueError(f"All price data is NaN for {symbol}")
+                
+                print(f"📈 Creating chart with {len(hist_data)} data points...")
+                
+                fig = go.Figure(data=[go.Candlestick(
+                    x=hist_data.index,
+                    open=hist_data['open'],
+                    high=hist_data['high'],
+                    low=hist_data['low'],
+                    close=hist_data['close'],
+                    increasing_line_color='#10B981',
+                    decreasing_line_color='#EF4444',
+                    increasing_fillcolor='#10B981',
+                    decreasing_fillcolor='#EF4444',
+                )])
+                
+                fig.update_layout(
+                    title={
+                        'text': f"{get_friendly_name(symbol)} Daily Price",
+                        'x': 0.5,
+                        'xanchor': 'center',
+                        'font': {'size': 20, 'color': '#E5E7EB', 'family': 'Outfit'}
+                    },
+                    xaxis_title="Date",
+                    yaxis_title="Price",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font={'color': '#9CA3AF', 'family': 'Inter'},
+                    xaxis=dict(
+                        gridcolor='rgba(212, 175, 55, 0.1)',
+                        gridwidth=1,
+                        showgrid=True,
+                        zeroline=False,
+                        linecolor='rgba(212, 175, 55, 0.3)',
+                    ),
+                    yaxis=dict(
+                        gridcolor='rgba(212, 175, 55, 0.1)',
+                        gridwidth=1,
+                        showgrid=True,
+                        zeroline=False,
+                        linecolor='rgba(212, 175, 55, 0.3)',
+                    ),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="left",
+                        x=0,
+                        font={'color': '#9CA3AF'},
+                        bgcolor='rgba(0,0,0,0)',
+                    ),
+                    margin=dict(l=0, r=0, t=50, b=0),
+                    height=500,
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
+                print(f"✅ Chart displayed successfully for {symbol}")
+                
+            except Exception as fetch_error:
+                error_msg = str(fetch_error)
+                print(f"❌ Error fetching chart data for {symbol}: {error_msg}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                st.warning(f"⚠️ Could not load historical price data for {symbol}. Error: {error_msg}")
+                st.info("💡 This may be due to network issues, API rate limits, or the ticker not being available. Try refreshing the page.")
         else:
             st.warning("Charts unavailable in Mock Data mode.")
     except Exception as e:
-        st.error(f"Could not load chart: {e}")
+        error_msg = str(e)
+        print(f"❌ Chart error for {symbol}: {error_msg}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        st.error(f"Could not load chart: {error_msg}")
 
 # === TAB 2: DEEP DIVE ===
 with tab2:
@@ -1081,99 +1128,139 @@ with tab2:
     try:
         if not data['is_mock']:
             has_international_suffix = any(symbol.endswith(suffix) for suffix in ['.KA', '.NS', '.L', '.T', '.HK', '.DE'])
+            hist_data = None
             
-            if has_international_suffix or not ALPHA_VANTAGE_KEY:
-                ticker = yf.Ticker(symbol)
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=100)
-                hist_data = ticker.history(start=start_date, end=end_date)
-                hist_data = hist_data.sort_index()
-                hist_data.columns = [col.lower() for col in hist_data.columns]
-                hist_data = hist_data[['open', 'high', 'low', 'close', 'volume']]
-            else:
-                ts = TimeSeries(key=ALPHA_VANTAGE_KEY, output_format='pandas')
-                hist_data, _ = ts.get_daily(symbol=symbol, outputsize='compact')
-                hist_data = hist_data.sort_index()
-                hist_data.columns = ['open', 'high', 'low', 'close', 'volume']
-            
-            delta = hist_data['close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            hist_data['rsi_plot'] = 100 - (100 / (1 + rs))
-
-            fig_rsi = go.Figure()
-            fig_rsi.add_trace(go.Scatter(
-                x=hist_data.index,
-                y=hist_data['rsi_plot'],
-                mode='lines',
-                name='RSI (14)',
-                line=dict(color='#D4AF37', width=2.5),
-                hovertemplate='<b>RSI</b>: %{y:.2f}<br>Date: %{x}<extra></extra>'
-            ))
-            
-            fig_rsi.add_hline(
-                y=70,
-                line_dash="dash",
-                line_color="#EF4444",
-                annotation_text="Overbought (70)",
-                annotation_position="right",
-                annotation_font_color="#EF4444"
-            )
-            fig_rsi.add_hline(
-                y=30,
-                line_dash="dash",
-                line_color="#10B981",
-                annotation_text="Oversold (30)",
-                annotation_position="right",
-                annotation_font_color="#10B981"
-            )
-            
-            fig_rsi.update_layout(
-                title={
-                    'text': "Relative Strength Index (14)",
-                    'x': 0.5,
-                    'xanchor': 'center',
-                    'font': {'size': 20, 'color': '#E5E7EB', 'family': 'Outfit'}
-                },
-                xaxis_title="Date",
-                yaxis_title="RSI",
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font={'color': '#9CA3AF', 'family': 'Inter'},
-                xaxis=dict(
-                    gridcolor='rgba(212, 175, 55, 0.1)',
-                    gridwidth=1,
-                    showgrid=True,
-                    zeroline=False,
-                    linecolor='rgba(212, 175, 55, 0.3)',
-                ),
-                yaxis=dict(
-                    gridcolor='rgba(212, 175, 55, 0.1)',
-                    gridwidth=1,
-                    showgrid=True,
-                    zeroline=False,
-                    linecolor='rgba(212, 175, 55, 0.3)',
-                    range=[0, 100]
-                ),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="left",
-                    x=0,
-                    font={'color': '#9CA3AF'},
-                    bgcolor='rgba(0,0,0,0)',
-                ),
-                margin=dict(l=0, r=0, t=50, b=0),
-                height=500,
-            )
-            
-            st.plotly_chart(fig_rsi, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
+            try:
+                if has_international_suffix or not ALPHA_VANTAGE_KEY:
+                    print(f"📊 Fetching RSI data for {symbol} using Yahoo Finance...")
+                    ticker = yf.Ticker(symbol)
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=100)
+                    hist_data = ticker.history(start=start_date, end=end_date)
+                    
+                    if hist_data is None or hist_data.empty:
+                        raise ValueError(f"Yahoo Finance returned empty data for {symbol}")
+                    
+                    hist_data = hist_data.sort_index()
+                    hist_data.columns = [col.lower() for col in hist_data.columns]
+                    hist_data = hist_data[['open', 'high', 'low', 'close', 'volume']]
+                else:
+                    print(f"📊 Fetching RSI data for {symbol} using Alpha Vantage...")
+                    ts = TimeSeries(key=ALPHA_VANTAGE_KEY, output_format='pandas')
+                    hist_data, _ = ts.get_daily(symbol=symbol, outputsize='compact')
+                    
+                    if hist_data is None or hist_data.empty:
+                        raise ValueError(f"Alpha Vantage returned empty data for {symbol}")
+                    
+                    hist_data = hist_data.sort_index()
+                    hist_data.columns = ['open', 'high', 'low', 'close', 'volume']
+                
+                # Validate data is not empty
+                if hist_data.empty or len(hist_data) == 0:
+                    raise ValueError(f"Historical data is empty for {symbol}")
+                
+                if 'close' not in hist_data.columns:
+                    raise ValueError(f"Missing 'close' column in data for {symbol}")
+                
+                print(f"📊 Calculating RSI with {len(hist_data)} data points...")
+                
+                delta = hist_data['close'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss
+                hist_data['rsi_plot'] = 100 - (100 / (1 + rs))
+                
+                # Validate RSI data is valid
+                if hist_data['rsi_plot'].isna().all():
+                    raise ValueError(f"RSI calculation resulted in all NaN values for {symbol}")
+                
+                print(f"📈 Creating RSI chart with {len(hist_data)} data points...")
+                
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(
+                    x=hist_data.index,
+                    y=hist_data['rsi_plot'],
+                    mode='lines',
+                    name='RSI (14)',
+                    line=dict(color='#D4AF37', width=2.5),
+                    hovertemplate='<b>RSI</b>: %{y:.2f}<br>Date: %{x}<extra></extra>'
+                ))
+                
+                fig_rsi.add_hline(
+                    y=70,
+                    line_dash="dash",
+                    line_color="#EF4444",
+                    annotation_text="Overbought (70)",
+                    annotation_position="right",
+                    annotation_font_color="#EF4444"
+                )
+                fig_rsi.add_hline(
+                    y=30,
+                    line_dash="dash",
+                    line_color="#10B981",
+                    annotation_text="Oversold (30)",
+                    annotation_position="right",
+                    annotation_font_color="#10B981"
+                )
+                
+                fig_rsi.update_layout(
+                    title={
+                        'text': "Relative Strength Index (14)",
+                        'x': 0.5,
+                        'xanchor': 'center',
+                        'font': {'size': 20, 'color': '#E5E7EB', 'family': 'Outfit'}
+                    },
+                    xaxis_title="Date",
+                    yaxis_title="RSI",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font={'color': '#9CA3AF', 'family': 'Inter'},
+                    xaxis=dict(
+                        gridcolor='rgba(212, 175, 55, 0.1)',
+                        gridwidth=1,
+                        showgrid=True,
+                        zeroline=False,
+                        linecolor='rgba(212, 175, 55, 0.3)',
+                    ),
+                    yaxis=dict(
+                        gridcolor='rgba(212, 175, 55, 0.1)',
+                        gridwidth=1,
+                        showgrid=True,
+                        zeroline=False,
+                        linecolor='rgba(212, 175, 55, 0.3)',
+                        range=[0, 100]
+                    ),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="left",
+                        x=0,
+                        font={'color': '#9CA3AF'},
+                        bgcolor='rgba(0,0,0,0)',
+                    ),
+                    margin=dict(l=0, r=0, t=50, b=0),
+                    height=500,
+                )
+                
+                st.plotly_chart(fig_rsi, use_container_width=True, config={'displayModeBar': True, 'displaylogo': False})
+                print(f"✅ RSI chart displayed successfully for {symbol}")
+                
+            except Exception as fetch_error:
+                error_msg = str(fetch_error)
+                print(f"❌ Error fetching RSI data for {symbol}: {error_msg}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                st.warning(f"⚠️ Could not load technical indicators for {symbol}. Error: {error_msg}")
+                st.info("💡 This may be due to network issues, API rate limits, or the ticker not being available. Try refreshing the page.")
         else:
             st.warning("Technical indicators unavailable in Mock Data mode.")
     except Exception as e:
-        st.error(f"Could not load technical indicators: {e}")
+        error_msg = str(e)
+        print(f"❌ Technical indicators error for {symbol}: {error_msg}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        st.error(f"Could not load technical indicators: {error_msg}")
 
 # Footer
 st.markdown("---")
