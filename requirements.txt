@@ -6,5 +6,4 @@ joblib>=1.1.0
 plotly>=5.0.0
 requests>=2.28.0
 alpha_vantage>=2.3.1
-pandas_ta
 yfinance>=0.2.28
