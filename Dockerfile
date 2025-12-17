@@ -24,7 +24,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY src/ src/
 COPY tests/ tests/
 
-COPY streamlit_app.py .
+COPY app.py .
 
 # Copy models (CRITICAL for Standalone Mode)
 COPY models/ models/

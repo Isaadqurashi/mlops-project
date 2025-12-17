@@ -32,7 +32,7 @@ jobs:
           # Upload the entire current directory to the Space
           api.upload_folder(
               folder_path='.',
-              repo_id='umer6016/Stockker',
+              repo_id='nvvy/nuqta-Stock-predictor',
               repo_type='space',
               token=os.environ['HF_TOKEN'],
               ignore_patterns=['.git', '.github', '__pycache__', 'vocab.txt']
