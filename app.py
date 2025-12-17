@@ -4,7 +4,8 @@ import numpy as np
 import joblib
 import os
 import plotly.graph_objects as go
-from scipy.stats import ks_2samp, gaussian_kde
+import plotly.figure_factory as ff
+from scipy.stats import ks_2samp
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -1831,48 +1832,20 @@ with tab4:
                                     col_drift1, col_drift2 = st.columns([2, 1])
                                     
                                     with col_drift1:
-                                        # Create distribution plot using manual KDE for consistency
+                                        # Create distribution plot
                                         try:
-                                            # Calculate KDE
-                                            kde_ref = gaussian_kde(ref_values)
-                                            kde_cur = gaussian_kde(cur_values)
-                                            
-                                            # Create X range
-                                            min_val = min(min(ref_values), min(cur_values))
-                                            max_val = max(max(ref_values), max(cur_values))
-                                            padding = (max_val - min_val) * 0.2
-                                            x_range = np.linspace(min_val - padding, max_val + padding, 200)
-                                            
-                                            fig_drift = go.Figure()
-                                            
-                                            # Add Training History Trace
-                                            fig_drift.add_trace(go.Scatter(
-                                                x=x_range,
-                                                y=kde_ref(x_range),
-                                                mode='lines',
-                                                name='Training History',
-                                                line=dict(color='#10B981', width=2),
-                                                fill='tozeroy',
-                                                fillcolor='rgba(16, 185, 129, 0.1)'
-                                            ))
-                                            
-                                            # Add Recent Data Trace
-                                            fig_drift.add_trace(go.Scatter(
-                                                x=x_range,
-                                                y=kde_cur(x_range),
-                                                mode='lines',
-                                                name='Last 30 Days',
-                                                line=dict(color='#EF4444', width=2),
-                                                fill='tozeroy',
-                                                fillcolor='rgba(239, 68, 68, 0.1)'
-                                            ))
+                                            fig_drift = ff.create_distplot(
+                                                [ref_values.tolist(), cur_values.tolist()],
+                                                ['Training History', 'Last 30 Days'],
+                                                colors=['#10B981', '#EF4444'],
+                                                show_hist=False,
+                                                show_rug=False
+                                            )
                                             
                                             fig_drift.update_layout(
                                                 template="plotly_dark",
                                                 title=f"{feature.upper()} Distribution: Historical vs Recent",
                                                 height=350,
-                                                xaxis_title=feature.upper(),
-                                                yaxis_title="Density",
                                                 showlegend=True,
                                                 legend=dict(orientation="h", y=-0.15),
                                                 margin=dict(l=50, r=50, t=50, b=80),
@@ -1880,7 +1853,7 @@ with tab4:
                                             
                                             st.plotly_chart(fig_drift, use_container_width=True, theme="streamlit")
                                         except Exception as plot_err:
-                                            st.warning(f"Could not create distribution plot: {str(plot_err)}")
+                                            st.warning(f"Could not create distribution plot: {str(plot_err)[:50]}")
                                     
                                     with col_drift2:
                                         # Display drift status
