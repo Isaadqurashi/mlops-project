@@ -5,14 +5,14 @@ FROM python:3.12-slim as builder
 WORKDIR /app
 
 # 1. Install pandas_ta (pre-release version)
-# We do this first to cache it
+# We do this first to cache it.
+# --pre allows beta versions, which fixes the "No matching distribution" error.
 RUN pip install --no-cache-dir --pre pandas_ta
 
 # 2. Copy requirements
 COPY requirements.txt .
 
 # 3. Install other dependencies
-# Note: Ensure scikit-learn version in requirements.txt exists (e.g. scikit-learn>=1.5.0)
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pyproject.toml .
@@ -24,13 +24,13 @@ RUN pip install "numpy<2.0" pandas
 RUN pip install --no-cache-dir .
 
 # Runtime stage
-# FIX: Switched to Python 3.12
+# FIX: Switched to Python 3.12 to match builder
 FROM python:3.12-slim
 
 WORKDIR /app
 
 # Copy installed packages from builder
-# FIX: Updated path from python3.10 to python3.12
+# FIX: CRITICAL CHANGE - Updated path from python3.9 to python3.12
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
