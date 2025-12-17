@@ -3,24 +3,21 @@ FROM python:3.10-slim as builder
 
 WORKDIR /app
 
-# Install Git so we can download pandas_ta directly
-RUN apt-get update && apt-get install -y git
+# --- FIX 1: Install pandas_ta using the "pre-release" flag ---
+# This fixes the "No matching distribution" error AND the "404 ZIP" error
+RUN pip install --no-cache-dir --pre pandas_ta
+# -----------------------------------------------------------
 
-# This downloads the code directly without needing git installed
-RUN pip install https://github.com/twopirllc/pandas-ta/archive/development.zip
-# ------------------------------------------
-
-# 1. Copy the requirements file
 COPY requirements.txt .
 
-# 2. Install dependencies from the file
+# Install dependencies from the file
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pyproject.toml .
 COPY src/ src/
 COPY tests/ tests/
 
-# Install dependencies
+# Install local package
 RUN pip install "numpy<2.0" pandas
 RUN pip install --no-cache-dir .
 
@@ -29,9 +26,10 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.9/site-packages
+# --- FIX 2: Updated path from python3.9 to python3.10 ---
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+# --------------------------------------------------------
 
 # Copy application code
 COPY src/ src/
@@ -39,7 +37,7 @@ COPY tests/ tests/
 
 COPY app.py .
 
-# Copy models (CRITICAL for Standalone Mode)
+# Copy models
 COPY models/ models/
 
 # Create directories for data and reports
