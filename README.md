@@ -24,7 +24,7 @@ An End-to-End Machine Learning System for predicting stock prices and analyzing 
 *   **Frontend:** Streamlit
 *   **Backend:** FastAPI / Prefect
 *   **ML:** Scikit-Learn, Pandas, Numpy
-*   **DevOps:** Docker, GitHub Actions
+*   **DevOps:** Docker, GitHub Actions 
 
 ## 📊 How to Use
 
