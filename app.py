@@ -876,6 +876,12 @@ def fetch_live_data_yahoo(symbol):
         data['rsi'] = 100 - (100 / (1 + rs))
         
         data['returns'] = data['close'].pct_change()
+        data['volatility'] = data['returns'].rolling(window=20).std()
+        
+        exp1 = data['close'].ewm(span=12, adjust=False).mean()
+        exp2 = data['close'].ewm(span=26, adjust=False).mean()
+        data['macd'] = exp1 - exp2
+        
         latest = data.iloc[-1]
         prev = data.iloc[-2] if len(data) > 1 else latest
         
@@ -924,6 +930,12 @@ def fetch_live_data_alphavantage(symbol):
         data['rsi'] = 100 - (100 / (1 + rs))
         
         data['returns'] = data['close'].pct_change()
+        data['volatility'] = data['returns'].rolling(window=20).std()
+        
+        exp1 = data['close'].ewm(span=12, adjust=False).mean()
+        exp2 = data['close'].ewm(span=26, adjust=False).mean()
+        data['macd'] = exp1 - exp2
+        
         latest = data.iloc[-1]
         prev = data.iloc[-2]
         
