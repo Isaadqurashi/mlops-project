@@ -1436,11 +1436,15 @@ with tab1:
                     yaxis=dict(showgrid=True),
                 )
                 
-                # Display chart with explicit config
+                # Display chart with explicit config (remove theme for HF compatibility)
                 st.plotly_chart(
                     fig, 
                     use_container_width=True,
-                    theme="streamlit"
+                    config={
+                        'displayModeBar': True,
+                        'displaylogo': False,
+                        'modeBarButtonsToRemove': ['pan2d', 'lasso2d']
+                    }
                 )
                 print(f"✅ Chart displayed successfully for {symbol}")
                 
@@ -1637,10 +1641,15 @@ with tab2:
                     yaxis=dict(showgrid=True, range=[0, 100]),
                 )
                 
+                # Remove theme parameter for Hugging Face compatibility
                 st.plotly_chart(
                     fig_rsi, 
                     use_container_width=True,
-                    theme="streamlit"
+                    config={
+                        'displayModeBar': True,
+                        'displaylogo': False,
+                        'modeBarButtonsToRemove': ['pan2d', 'lasso2d']
+                    }
                 )
                 print(f"✅ RSI chart displayed successfully for {symbol}")
                 
@@ -1726,7 +1735,16 @@ with tab3:
                     margin=dict(l=100, r=50, t=80, b=120),
                 )
                 
-                st.plotly_chart(fig_heatmap, use_container_width=True, theme="streamlit")
+                # Remove theme parameter for Hugging Face compatibility
+                st.plotly_chart(
+                    fig_heatmap, 
+                    use_container_width=True,
+                    config={
+                        'displayModeBar': True,
+                        'displaylogo': False,
+                        'modeBarButtonsToRemove': ['pan2d', 'lasso2d']
+                    }
+                )
                 
                 # Show insights
                 st.markdown("---")
@@ -1851,7 +1869,16 @@ with tab4:
                                                 margin=dict(l=50, r=50, t=50, b=80),
                                             )
                                             
-                                            st.plotly_chart(fig_drift, use_container_width=True, theme="streamlit")
+                                            # Remove theme parameter for Hugging Face compatibility
+                                            st.plotly_chart(
+                                                fig_drift, 
+                                                use_container_width=True,
+                                                config={
+                                                    'displayModeBar': True,
+                                                    'displaylogo': False,
+                                                    'modeBarButtonsToRemove': ['pan2d', 'lasso2d']
+                                                }
+                                            )
                                         except Exception as plot_err:
                                             st.warning(f"Could not create distribution plot: {str(plot_err)[:50]}")
                                     
